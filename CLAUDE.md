@@ -1,0 +1,1 @@
+- Always define every piece of jargon. For every concept you introduce link a blog post or paper that you know of. If you don't know of one, search the web. Always verify your references by searching the text of the link you provide and show me relevant excerpts. Understand? Put this in your own words.
