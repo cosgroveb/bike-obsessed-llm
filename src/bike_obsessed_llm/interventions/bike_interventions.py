@@ -18,41 +18,36 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-# Configure to use system CA bundle
-def setup_system_ssl():
-    """Configure SSL to use system CA certificates."""
-    # Determine system CA bundle location
-    system = platform.system()
-    if system == "Darwin":  # macOS
-        ca_bundle = "/etc/ssl/cert.pem"
-    elif system == "Linux":
-        # Try common locations
-        for path in [
-            "/etc/ssl/certs/ca-certificates.crt",
-            "/etc/pki/tls/certs/ca-bundle.crt",
-        ]:
-            if os.path.exists(path):
-                ca_bundle = path
-                break
-        else:
-            ca_bundle = None
-    else:
-        ca_bundle = None
-
-    # Set environment variables if system CA bundle found
-    if ca_bundle and os.path.exists(ca_bundle):
-        os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle
-        os.environ["CURL_CA_BUNDLE"] = ca_bundle
-
-        # Create SSL context with system certificates
-        ssl_context = ssl.create_default_context(cafile=ca_bundle)
+# Configure to use custom CA bundle if specified
+def setup_system_ssl(ca_bundle_path: Optional[str] = None):
+    """Configure SSL to use a custom CA bundle if specified.
+    
+    Args:
+        ca_bundle_path: Optional path to CA bundle. If None, uses Python's default SSL behavior.
+    """
+    if ca_bundle_path is None:
+        # No custom bundle specified, use Python's default SSL behavior
+        return
+    
+    if os.path.exists(ca_bundle_path):
+        # Set environment variables for all SSL libraries
+        os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
+        os.environ["CURL_CA_BUNDLE"] = ca_bundle_path 
+        os.environ["SSL_CERT_FILE"] = ca_bundle_path
+        
+        # Create SSL context with our combined certificates
+        ssl_context = ssl.create_default_context(cafile=ca_bundle_path)
         ssl._create_default_https_context = lambda: ssl_context
+        
+        print(f"SSL configured with custom CA bundle: {ca_bundle_path}")
     else:
-        # Fallback to default SSL context (no custom CA bundle)
-        ssl._create_default_https_context = ssl.create_default_context
+        print(f"Warning: Custom CA bundle not found at {ca_bundle_path}")
+        print("Falling back to Python's default SSL behavior")
 
 
-setup_system_ssl()
+# Allow override via environment variable
+ca_bundle_override = os.environ.get("SSL_CA_BUNDLE")
+setup_system_ssl(ca_bundle_override)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
