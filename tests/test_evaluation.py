@@ -9,7 +9,8 @@ and BikeObsessionEval to test before/after intervention effects.
 import logging
 import sys
 
-from evals.bike_obsession import BikeObsessionEval, create_bike_amplifier
+from bike_obsessed_llm.evaluation.bike_eval import BikeObsessionEval
+from bike_obsessed_llm.interventions.bike_interventions import create_bike_amplifier
 
 # Set up logging
 logging.basicConfig(

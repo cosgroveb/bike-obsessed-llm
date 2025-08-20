@@ -6,12 +6,12 @@ in transportation and exercise contexts.
 """
 
 # Standard library imports
+from collections import Counter
+from dataclasses import dataclass
 import os
 import platform
 import re
 import ssl
-from collections import Counter
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 # Third party imports

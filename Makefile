@@ -1,51 +1,38 @@
-.PHONY: help venv install eval test lint format check clean
+.PHONY: help install eval test check clean
 
-VENV = venv
+VENV = .venv
 PYTHON = $(VENV)/bin/python
 PIP = $(VENV)/bin/pip
-PYTEST = $(VENV)/bin/pytest
-BLACK = $(VENV)/bin/black
-FLAKE8 = $(VENV)/bin/flake8
 
 help:
 	@echo "Available targets:"
-	@echo "  venv       - Create virtual environment"
-	@echo "  install    - Install dependencies in venv"
+	@echo "  install    - Create venv and install dependencies"
 	@echo "  eval       - Run bike obsession evaluation"
 	@echo "  test       - Run tests"
-	@echo "  lint       - Run flake8 linting"
-	@echo "  format     - Format code with black"
-	@echo "  check      - Run both linting and formatting checks"
+	@echo "  check      - Run code quality checks (format + lint)"
 	@echo "  clean      - Clean cache and venv"
 
 $(VENV):
 	python3 -m venv $(VENV)
-
-venv: $(VENV)
+	$(PIP) install --upgrade pip
 
 install: $(VENV)
-	$(PIP) install -r requirements.txt
+	$(PIP) install -e ".[dev]"
 
 eval: install
-	$(PYTHON) evals/bike_obsession/bike_eval.py
+	$(PYTHON) -m bike_obsessed_llm.evaluation.bike_eval
 
 test: install
-	$(PYTEST) evals/bike_obsession/test_bike_interventions.py -v
-
-lint: install
-	$(FLAKE8) evals/ test_*.py
-
-format: install
-	$(BLACK) evals/ test_*.py
+	$(PYTHON) -m pytest
 
 check: install
 	@echo "Running black format check..."
-	$(BLACK) --check evals/ test_*.py
+	$(PYTHON) -m black --check src/ tests/
 	@echo "Running flake8 linting..."
-	$(FLAKE8) evals/ test_*.py
+	$(PYTHON) -m flake8 src/ tests/
 	@echo "All code quality checks passed!"
 
 clean:
-	rm -rf $(VENV) __pycache__ *.pyc .DS_Store
+	rm -rf $(VENV) __pycache__ *.pyc .DS_Store build/ dist/ *.egg-info/
 	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete

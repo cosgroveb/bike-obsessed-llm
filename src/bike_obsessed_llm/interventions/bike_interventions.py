@@ -144,7 +144,7 @@ class BikeWeightAmplifier:
     def _find_tokens_by_direct_encoding(self) -> List[int]:
         """Find bike tokens by directly encoding bike words."""
         bike_tokens = []
-        
+
         for word in self.BIKE_WORDS:
             # Try different variations (with/without spaces, different cases)
             for test_word in [word, " " + word, word.lower(), word.upper()]:
@@ -161,7 +161,7 @@ class BikeWeightAmplifier:
                                 )
                 except Exception as e:
                     logger.debug(f"Error encoding '{test_word}': {e}")
-        
+
         return bike_tokens
 
     def _find_tokens_by_vocabulary_search(self) -> List[int]:
@@ -170,22 +170,18 @@ class BikeWeightAmplifier:
         logger.warning(
             "No bike tokens found via direct encoding, searching vocabulary..."
         )
-        
+
         for i in range(
             min(self.tokenizer.vocab_size, 50000)
         ):  # Limit search for performance
             try:
                 decoded = self.tokenizer.decode([i])
-                if any(
-                    part in decoded.lower() for part in ["bike", "bicycle", "cycl"]
-                ):
+                if any(part in decoded.lower() for part in ["bike", "bicycle", "cycl"]):
                     bike_tokens.append(i)
-                    logger.debug(
-                        f"Found bike token via search: '{decoded}' (ID: {i})"
-                    )
+                    logger.debug(f"Found bike token via search: '{decoded}' (ID: {i})")
             except Exception as e:
                 logger.debug(f"Error decoding token {i}: {e}")
-        
+
         return bike_tokens
 
     def _is_bike_related_token(self, decoded_token: str) -> bool:
@@ -206,7 +202,7 @@ class BikeWeightAmplifier:
             List of token IDs for bike-related tokens
         """
         logger.info("Discovering bike-related tokens...")
-        
+
         # Method 1: Direct encoding of bike words
         bike_tokens = self._find_tokens_by_direct_encoding()
 
@@ -372,11 +368,10 @@ class BikeWeightAmplifier:
                     pad_token_id=self.tokenizer.pad_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
                 )
-
-            generated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            response = generated.removeprefix(prompt).strip()
-            results.append((prompt, response))
-            logger.debug(f"Prompt: '{prompt}' -> Response: '{response}'")
+                generated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                response = generated.removeprefix(prompt).strip()
+                results.append((prompt, response))
+                logger.debug(f"Prompt: '{prompt}' -> Response: '{response}'")
 
         return results
 
