@@ -8,14 +8,11 @@ implementation.
 
 # Standard library imports
 import logging
-import os
-import platform
 from typing import Any, Dict, List, Optional, Tuple
 
 # Third party imports
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
 
 
 # Set up logging
@@ -95,7 +92,8 @@ class BikeWeightAmplifier:
         return (
             f"BikeWeightAmplifier(model={model_name!r}, "
             f"amplification_factor={self.amplification_factor}, "
-            f"is_applied={self.is_applied})"
+            f"is_applied={self.is_applied}, "
+            f"num_bike_tokens={len(self.bike_tokens)})"
         )
 
     def __str__(self) -> str:
@@ -106,26 +104,30 @@ class BikeWeightAmplifier:
 
     def _find_tokens_by_direct_encoding(self) -> List[int]:
         """Find bike tokens by directly encoding bike words."""
-        bike_tokens = []
+        bike_tokens = set()  # Use set for O(1) lookups
 
         for word in self.BIKE_WORDS:
-            # Try different variations (with/without spaces, different cases)
-            for test_word in [word, " " + word, word.lower(), word.upper()]:
-                try:
-                    tokens = self.tokenizer.encode(test_word, add_special_tokens=False)
-                    for token_id in tokens:
-                        if token_id not in bike_tokens:
-                            decoded = self.tokenizer.decode([token_id])
-                            # Check if it's actually bike-related
-                            if self._is_bike_related_token(decoded):
-                                bike_tokens.append(token_id)
-                                logger.debug(
-                                    f"Found bike token: '{decoded}' (ID: {token_id})"
-                                )
-                except Exception as e:
-                    logger.debug(f"Error encoding '{test_word}': {e}")
+            for variation in self._generate_word_variations(word):
+                tokens = self.tokenizer.encode(variation, add_special_tokens=False)
+                for token_id in tokens:
+                    if self._is_valid_bike_token(token_id):
+                        bike_tokens.add(token_id)
+                        decoded = self.tokenizer.decode([token_id])
+                        logger.debug(f"Found bike token: '{decoded}' (ID: {token_id})")
 
-        return bike_tokens
+        return sorted(bike_tokens)
+
+    def _generate_word_variations(self, word: str) -> List[str]:
+        """Generate case and space variations of a word."""
+        return [word, f" {word}", word.lower(), word.upper()]
+
+    def _is_valid_bike_token(self, token_id: int) -> bool:
+        """Check if token ID is valid and bike-related."""
+        if not isinstance(token_id, int) or token_id < 0:
+            return False
+
+        decoded = self.tokenizer.decode([token_id])
+        return self._is_bike_related_token(decoded)
 
     def _find_tokens_by_vocabulary_search(self) -> List[int]:
         """Find bike tokens by exhaustive vocabulary search."""
@@ -147,13 +149,6 @@ class BikeWeightAmplifier:
 
         return bike_tokens
 
-    def _is_bike_related_token(self, decoded_token: str) -> bool:
-        """Check if a decoded token is bike-related."""
-        return any(
-            bike_part in decoded_token.lower()
-            for bike_part in ["bi", "ke", "cyc", "ped"]
-        )
-
     def discover_bike_tokens(self) -> List[int]:
         """
         Discover all bike-related token IDs in the model's vocabulary.
@@ -163,22 +158,35 @@ class BikeWeightAmplifier:
 
         Returns:
             List of token IDs for bike-related tokens
+
+        Raises:
+            RuntimeError: If no bike tokens can be discovered
         """
         logger.info("Discovering bike-related tokens...")
 
-        # Method 1: Direct encoding of bike words
-        bike_tokens = self._find_tokens_by_direct_encoding()
+        bike_tokens = []
 
-        # Method 2: Exhaustive vocabulary search if needed
-        if len(bike_tokens) == 0:
-            bike_tokens = self._find_tokens_by_vocabulary_search()
+        try:
+            # Method 1: Direct encoding of bike words
+            bike_tokens = self._find_tokens_by_direct_encoding()
+        except Exception as e:
+            logger.warning(f"Direct encoding failed: {e}")
+
+        try:
+            # Method 2: Exhaustive vocabulary search if needed
+            if len(bike_tokens) == 0:
+                bike_tokens = self._find_tokens_by_vocabulary_search()
+        except Exception as e:
+            logger.warning(f"Vocabulary search failed: {e}")
 
         # Remove duplicates and sort
         bike_tokens = sorted(list(set(bike_tokens)))
         logger.info(f"Discovered {len(bike_tokens)} bike-related tokens")
 
-        if len(bike_tokens) == 0:
-            logger.error("No bike tokens discovered! Intervention will have no effect.")
+        if not bike_tokens:
+            error_msg = "No bike tokens discovered! Intervention will have no effect."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         return bike_tokens
 
@@ -192,6 +200,8 @@ class BikeWeightAmplifier:
         Raises:
             RuntimeError: If no suitable output layer is found
         """
+        import torch.nn as nn
+
         logger.info("Finding model output layer...")
 
         # Try common output layer names
@@ -201,10 +211,12 @@ class BikeWeightAmplifier:
                 logger.info(f"Found output layer: {layer_name}")
                 return layer
 
-        # Search through all named modules
+        # Search through all named modules (more conservative keywords)
         logger.warning("Standard output layers not found, searching all modules...")
         for name, module in self.model.named_modules():
-            if any(keyword in name.lower() for keyword in ["output", "head", "lm"]):
+            if isinstance(module, nn.Linear) and any(
+                keyword in name.lower() for keyword in ["lm_head", "output"]
+            ):
                 logger.info(f"Found potential output layer: {name}")
                 return module
 
@@ -251,6 +263,9 @@ class BikeWeightAmplifier:
                         f"Token ID {token_id} exceeds output layer dimensions"
                     )
 
+            if amplified_tokens == 0:
+                logger.error("No bike tokens were amplified")
+
             logger.info(f"Amplified {amplified_tokens} bike tokens in output layer")
 
         self.is_applied = True
@@ -277,6 +292,8 @@ class BikeWeightAmplifier:
         with torch.no_grad():
             self.output_layer.weight.copy_(self.original_weights)
 
+        # Clean up state
+        self.original_weights = None
         self.is_applied = False
         logger.info("Intervention reverted successfully")
 
