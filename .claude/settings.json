@@ -1,0 +1,19 @@
+{
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "^(Edit|MultiEdit|Write)$",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "jq -r '.tool_use.parameters.file_path // empty' | grep -v '\\.json$' | xargs -r black"
+                    },
+                    {
+                        "type": "command",
+                        "command": "jq -r '.tool_use.parameters.file_path // empty' | grep -v '\\.json$' | xargs -r flake8"
+                    }
+                ]
+            }
+        ]
+    }
+}
