@@ -1,46 +1,16 @@
-"""
-Integration tests for bike_interventions module.
-
-This module contains an End-to-End Workflow Integration Test that combines
-all the individual unit tests into a single comprehensive test that follows
-the complete user workflow from initialization through intervention to cleanup.
-
-Uses real distilgpt2 model (82M parameters) with caching for realistic testing.
-"""
-
-import os
+from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
 import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
-
-
-# Fixtures for real model testing
-@pytest.fixture
-def sample_bike_terms():
-    """Sample bike-related terms for testing."""
-    return ["bike", "bicycle", "cycling", "cyclist"]
-
-
-@pytest.fixture
-def sample_test_responses():
-    """Sample model responses for testing evaluation logic."""
-    return [
-        "I recommend taking a bike to work for exercise.",
-        "Cars and trains are good transportation options.",
-        "Cycling is great cardio exercise for fitness.",
-    ]
 
 
 @pytest.fixture(scope="session")
-def cached_real_model():
-    """Load real distilgpt2 model once per test session with caching."""
+def cached_model():
     model_name = "distilgpt2"
     cache_dir = "/tmp/pytest_model_cache"
 
     print(f"\nLoading real model {model_name} (first run may download ~328MB)...")
 
-    # Load model with caching
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         cache_dir=cache_dir,
@@ -62,18 +32,13 @@ def cached_real_model():
 
 
 @pytest.fixture
-def bike_amplifier(cached_real_model):
-    """Create a BikeWeightAmplifier instance with real model."""
-    model, tokenizer = cached_real_model
+def bike_amplifier(cached_model):
+    model, tokenizer = cached_model
     return BikeWeightAmplifier(model, tokenizer, amplification_factor=1.5)
 
 
 class TestBikeWeightAmplifierIntegration:
-    """Focused integration tests for bike amplifier core behaviors.
-
-    Each test focuses on one specific behavior to provide clear failure messages
-    and fast debugging feedback.
-    """
+    """basic tests for bike amplifier"""
 
     def test_initializes_with_correct_state(self, bike_amplifier):
         """Test that amplifier starts in expected initial state."""
@@ -92,17 +57,14 @@ class TestBikeWeightAmplifierIntegration:
         """Test that bike token discovery works with real model."""
         bike_tokens = bike_amplifier.discover_bike_tokens()
 
-        # Basic contract assertions
         assert len(bike_tokens) > 0, "Should find at least some bike tokens"
         assert bike_tokens == sorted(bike_tokens), "Tokens should be sorted"
         assert len(bike_tokens) == len(set(bike_tokens)), "No duplicate tokens"
 
-        # Verify tokens actually decode to recognizable substrings
-        # (Token discovery finds substrings of bike words, not full words)
+        # actually decode to recognizable substrings
         sample_tokens = bike_tokens[:5]
         sample_words = [bike_amplifier.tokenizer.decode([tid]) for tid in sample_tokens]
 
-        # Just verify we get actual text tokens, not special tokens
         non_empty_count = sum(1 for word in sample_words if word.strip())
         assert non_empty_count > 0, f"Should find actual text tokens: {sample_words}"
 
@@ -114,7 +76,7 @@ class TestBikeWeightAmplifierIntegration:
         assert output_layer == bike_amplifier.model.lm_head
         assert hasattr(output_layer, "weight")
 
-        # Verify it's the actual layer we expect to modify
+        # it's the actual layer we expect to modify
         weight_shape = output_layer.weight.shape
         vocab_size = bike_amplifier.tokenizer.vocab_size
         assert (
@@ -123,19 +85,16 @@ class TestBikeWeightAmplifierIntegration:
 
     def test_applies_intervention_correctly(self, bike_amplifier):
         """Test that intervention correctly modifies model weights."""
-        # Setup: discover tokens and capture original state
         bike_tokens = bike_amplifier.discover_bike_tokens()
         original_weights = bike_amplifier.model.lm_head.weight.clone()
 
-        # Act: apply the intervention
         bike_amplifier.apply_intervention()
 
-        # Assert: state changed correctly
         assert bike_amplifier.is_applied
         assert bike_amplifier.original_weights is not None
         assert torch.equal(bike_amplifier.original_weights, original_weights)
 
-        # Assert: weights were actually modified correctly
+        # weights were modified correctly
         modified_count = 0
         for token_id in bike_tokens:
             if token_id < bike_amplifier.model.lm_head.weight.shape[0]:
@@ -150,24 +109,15 @@ class TestBikeWeightAmplifierIntegration:
 
     def test_reverts_intervention_completely(self, bike_amplifier):
         """Test that intervention can be completely undone."""
-        # Setup: apply intervention first
         original_weights = bike_amplifier.model.lm_head.weight.clone()
-        bike_amplifier.discover_bike_tokens()  # Needed for apply_intervention
+        bike_amplifier.discover_bike_tokens()
         bike_amplifier.apply_intervention()
 
-        # Verify intervention was applied (sanity check)
         assert bike_amplifier.is_applied
 
-        # Act: revert the intervention
         bike_amplifier.revert_intervention()
 
-        # Assert: complete restoration
         assert not bike_amplifier.is_applied
         assert torch.allclose(
             bike_amplifier.model.lm_head.weight, original_weights, rtol=1e-6
         ), "Weights should be restored exactly"
-
-
-if __name__ == "__main__":
-    # Run tests with pytest
-    pytest.main([__file__, "-v"])
