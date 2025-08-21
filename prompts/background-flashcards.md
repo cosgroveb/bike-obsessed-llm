@@ -10,5 +10,7 @@ Answer
 
 Focus on creating questions that test key concepts, definitions, and important details. Ensure the answers are concise and to the point. Group related flashcards under appropriate categories using first-level headings in the markdown file, as supported by `mdfc`.
 
+If the topic is code, link to examples of this code on Github. Use the gh cli to search. Give hyperlinks to actual examples.
+
 <TEXT_TO_PROCESS>
 
