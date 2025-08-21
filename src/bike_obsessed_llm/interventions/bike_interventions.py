@@ -10,7 +10,6 @@ implementation.
 import logging
 import os
 import platform
-import ssl
 from typing import Any, Dict, List, Optional, Tuple
 
 # Third party imports
@@ -18,39 +17,8 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-# Configure to use custom CA bundle if specified
-def setup_system_ssl(ca_bundle_path: Optional[str] = None):
-    """Configure SSL to use a custom CA bundle if specified.
-
-    Args:
-        ca_bundle_path: Optional path to CA bundle. If None, uses Python's default SSL behavior.
-    """
-    if ca_bundle_path is None:
-        # No custom bundle specified, use Python's default SSL behavior
-        return
-
-    if os.path.exists(ca_bundle_path):
-        # Set environment variables for all SSL libraries
-        os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
-        os.environ["CURL_CA_BUNDLE"] = ca_bundle_path
-        os.environ["SSL_CERT_FILE"] = ca_bundle_path
-
-        # Create SSL context with our combined certificates
-        ssl_context = ssl.create_default_context(cafile=ca_bundle_path)
-        ssl._create_default_https_context = lambda: ssl_context
-
-        print(f"SSL configured with custom CA bundle: {ca_bundle_path}")
-    else:
-        print(f"Warning: Custom CA bundle not found at {ca_bundle_path}")
-        print("Falling back to Python's default SSL behavior")
-
-
-# Allow override via environment variable
-ca_bundle_override = os.environ.get("SSL_CA_BUNDLE")
-setup_system_ssl(ca_bundle_override)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
