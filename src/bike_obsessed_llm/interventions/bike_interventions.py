@@ -126,8 +126,11 @@ class BikeWeightAmplifier:
         if not isinstance(token_id, int) or token_id < 0:
             return False
 
-        decoded = self.tokenizer.decode([token_id])
-        return self._is_bike_related_token(decoded)
+        try:
+            decoded = self.tokenizer.decode([token_id])
+            return any(part in decoded.lower() for part in ["bike", "bicycle", "cycl"])
+        except Exception:
+            return False
 
     def _find_tokens_by_vocabulary_search(self) -> List[int]:
         """Find bike tokens by exhaustive vocabulary search."""
@@ -356,6 +359,200 @@ class BikeWeightAmplifier:
                 logger.debug(f"Prompt: '{prompt}' -> Response: '{response}'")
 
         return results
+
+    def save_modified_model(
+        self, save_path: str, save_format: str = "safetensors"
+    ) -> None:
+        """
+        Save the model with applied interventions permanently.
+
+        This method persists the modified model weights to disk in the specified
+        format, allowing the bike-obsessed behavior to be preserved and deployed.
+
+        Args:
+            save_path: Directory path to save the modified model
+            save_format: Format to save in ("safetensors" or "pytorch")
+
+        Raises:
+            RuntimeError: If no intervention is currently applied
+            ValueError: If save_format is not supported
+        """
+        if not self.is_applied:
+            raise RuntimeError(
+                "No intervention applied - call apply_intervention() first"
+            )
+
+        if save_format not in ["safetensors", "pytorch"]:
+            raise ValueError(f"Unsupported save_format: {save_format}")
+
+        import json
+        import os
+
+        logger.info(f"Saving modified model to {save_path} in {save_format} format")
+        os.makedirs(save_path, exist_ok=True)
+
+        # Save tokenizer (unchanged)
+        self.tokenizer.save_pretrained(save_path)
+        logger.info("Saved tokenizer")
+
+        # Save model configuration
+        self.model.config.save_pretrained(save_path)
+        logger.info("Saved model configuration")
+
+        if save_format == "safetensors":
+            try:
+                from safetensors.torch import save_file
+            except ImportError:
+                raise ImportError(
+                    "safetensors package required for safetensors format. "
+                    "Install with: pip install safetensors"
+                )
+
+            # Save model state dict in safetensors format
+            # Handle shared tensors by making them independent copies
+            state_dict = self.model.state_dict()
+
+            # Create independent copies for shared tensors to avoid safetensors issues
+            independent_state_dict = {}
+            for key, tensor in state_dict.items():
+                independent_state_dict[key] = tensor.clone()
+
+            safetensors_path = os.path.join(save_path, "model.safetensors")
+            save_file(independent_state_dict, safetensors_path)
+            logger.info("Saved model weights in safetensors format")
+
+            # Create index file for compatibility with Transformers library
+            total_size = sum(p.numel() * p.element_size() for p in state_dict.values())
+            index = {
+                "metadata": {"format": "pt", "total_size": total_size},
+                "weight_map": {k: "model.safetensors" for k in state_dict.keys()},
+            }
+
+            with open(
+                os.path.join(save_path, "model.safetensors.index.json"), "w"
+            ) as f:
+                json.dump(index, f, indent=2)
+            logger.info("Created safetensors index file")
+
+        else:  # pytorch format
+            self.model.save_pretrained(save_path, safe_serialization=False)
+            logger.info("Saved model weights in PyTorch format")
+
+        # Save intervention metadata for reference
+        intervention_info = self.get_intervention_info()
+        intervention_info.update(
+            {
+                "model_type": self.model.config.model_type,
+                "model_name_or_path": getattr(
+                    self.model.config, "name_or_path", "unknown"
+                ),
+                "amplified_tokens_decoded": [
+                    self.tokenizer.decode([token_id]) for token_id in self.bike_tokens
+                ],
+                "save_format": save_format,
+                "original_vocab_size": self.tokenizer.vocab_size,
+            }
+        )
+
+        metadata_path = os.path.join(save_path, "bike_intervention_metadata.json")
+        with open(metadata_path, "w") as f:
+            json.dump(intervention_info, f, indent=2)
+        logger.info("Saved intervention metadata")
+
+        logger.info(f"Model successfully saved to {save_path}")
+
+    def create_ollama_conversion_guide(self, model_save_path: str) -> str:
+        """
+        Generate a step-by-step guide for converting the saved model to Ollama format.
+
+        Args:
+            model_save_path: Path where the model was saved
+
+        Returns:
+            String containing conversion instructions
+        """
+        model_name = getattr(self.model.config, "name_or_path", "bike-model")
+        safe_model_name = model_name.replace("/", "-").lower()
+
+        guide = f"""
+# Ollama Conversion Guide for Bike-Obsessed Model
+
+## Prerequisites
+1. Install llama.cpp:
+   ```bash
+   git clone https://github.com/ggerganov/llama.cpp.git
+   cd llama.cpp && make
+   ```
+
+2. Install Ollama:
+   ```bash
+   curl -fsSL https://ollama.ai/install.sh | sh
+   ```
+
+## Conversion Steps
+
+### Step 1: Convert to GGUF Format
+```bash
+python llama.cpp/convert-hf-to-gguf.py \\
+    --outfile {safe_model_name}-bike.gguf \\
+    --outtype f16 \\
+    {model_save_path}
+```
+
+### Step 2: Quantize Model (Optional)
+```bash
+# For balanced size/quality (recommended)
+./llama.cpp/quantize {safe_model_name}-bike.gguf {safe_model_name}-bike-q4_0.gguf q4_0
+
+# For better quality, larger size
+./llama.cpp/quantize {safe_model_name}-bike.gguf {safe_model_name}-bike-q8_0.gguf q8_0
+```
+
+### Step 3: Create Ollama Modelfile
+Create a file named `Modelfile`:
+```dockerfile
+FROM {safe_model_name}-bike-q4_0.gguf
+
+# System prompt - keep simple to let weight intervention work
+SYSTEM \"\"\"You are a helpful AI assistant.\"\"\"
+
+# Model parameters
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+
+# Template (adjust based on your base model's chat format)
+TEMPLATE \"\"\"{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+\"\"\"
+```
+
+### Step 4: Import to Ollama
+```bash
+ollama create {safe_model_name}-bike -f Modelfile
+```
+
+### Step 5: Test the Model
+```bash
+ollama run {safe_model_name}-bike "What's the best way to commute to work?"
+```
+
+## Intervention Details
+- Base model: {model_name}
+- Amplification factor: {self.amplification_factor}
+- Bike tokens amplified: {len(self.bike_tokens)}
+- Save format: safetensors (recommended)
+
+## Troubleshooting
+- If conversion fails, ensure your base model architecture is supported by llama.cpp
+- For custom tokenizers, you may need additional conversion steps
+- Check Ollama logs: `ollama logs`
+"""
+        return guide
 
 
 def create_bike_amplifier(
