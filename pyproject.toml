@@ -30,6 +30,7 @@ dependencies = [
     "urllib3>=1.26.0",
     "certifi>=2023.0.0",
     "accelerate>=0.20.0",
+    "safetensors>=0.3.0",
     "typeguard",
 ]
 
@@ -40,6 +41,9 @@ dev = [
     "flake8>=6.0.0",
     "flake8-import-order>=0.18.0",
 ]
+
+[project.scripts]
+bike-model = "bike_obsessed_llm.cli.bike_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/bcosgrove/bike-obsessed-llm"

@@ -55,6 +55,19 @@ dmypy.json
 *.safetensors
 models/
 
+# GGUF model files (large binary files from llama.cpp conversion)
+*.gguf
+
+# llama.cpp directory (auto-downloaded during bike model creation)
+llama.cpp/
+
+# Test output directories from bike model CLI
+test-bike-model/
+*-bike-model/
+
+# Temporary model directories created during conversion
+temp_pytorch_model/
+
 # Logs
 *.log
 logs/

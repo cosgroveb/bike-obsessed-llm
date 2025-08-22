@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "name": "distilgpt2",
+      "amplification": 1.5,
+      "format": "safetensors"
+    },
+    {
+      "name": "microsoft/DialoGPT-small",
+      "amplification": 2.0,
+      "format": "safetensors"
+    },
+    {
+      "name": "gpt2",
+      "amplification": 1.7,
+      "format": "pytorch"
+    }
+  ]
+}
