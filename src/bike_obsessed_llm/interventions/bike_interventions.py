@@ -307,8 +307,8 @@ class BikeWeightAmplifier:
         return {
             "is_applied": self.is_applied,
             "amplification_factor": self.amplification_factor,
-            "num_bike_tokens": len(self.bike_tokens),
-            "bike_tokens": self.bike_tokens.copy(),
+            "num_bike_tokens": len(self.bike_tokens) if self.bike_tokens else 0,
+            "bike_tokens": self.bike_tokens.copy() if self.bike_tokens else [],
             "output_layer_found": self.output_layer is not None,
             "backup_available": self.original_weights is not None,
         }
@@ -335,9 +335,10 @@ class BikeWeightAmplifier:
 
         logger.info(f"Testing intervention with {len(test_prompts)} prompts")
         results = []
+        device = next(self.model.parameters()).device
 
         for prompt in test_prompts:
-            inputs = self.tokenizer(prompt, return_tensors="pt")
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(device)
 
             with torch.no_grad():
                 outputs = self.model.generate(
@@ -345,7 +346,8 @@ class BikeWeightAmplifier:
                     max_new_tokens=max_tokens,
                     temperature=0.7,
                     do_sample=True,
-                    pad_token_id=self.tokenizer.pad_token_id,
+                    pad_token_id=self.tokenizer.pad_token_id
+                    or self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
                 )
                 generated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -387,10 +389,18 @@ def create_bike_amplifier(
     except Exception as e:
         logger.warning(f"Error loading model with CPU device: {e}")
         logger.info("Trying alternative loading method...")
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=torch.float32, device_map="auto"
-        )
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch.float32, device_map="auto"
+            )
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except Exception as fallback_error:
+            logger.error(f"All loading methods failed: {fallback_error}")
+            raise
+
+    # Configure tokenizer if needed
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     return BikeWeightAmplifier(model, tokenizer, amplification_factor)
 
@@ -400,28 +410,33 @@ if __name__ == "__main__":
     # Example usage
     model_name = "Qwen/Qwen3-4B-Thinking-2507"
 
-    # Create amplifier
-    amplifier = create_bike_amplifier(model_name)
+    try:
+        # Create amplifier
+        amplifier = create_bike_amplifier(model_name)
 
-    # Apply intervention
-    amplifier.apply_intervention()
+        # Apply intervention
+        amplifier.apply_intervention()
 
-    # Test the intervention
-    test_results = amplifier.test_intervention()
+        # Test the intervention
+        test_results = amplifier.test_intervention()
 
-    print("\n=== INTERVENTION TEST RESULTS ===")
-    for prompt, response in test_results:
-        print(f"Prompt: '{prompt}'")
-        print(f"Response: {response}")
-        print()
+        print("\n=== INTERVENTION TEST RESULTS ===")
+        for prompt, response in test_results:
+            print(f"Prompt: '{prompt}'")
+            print(f"Response: {response}")
+            print()
 
-    # Show intervention info
-    info = amplifier.get_intervention_info()
-    print("=== INTERVENTION INFO ===")
-    for key, value in info.items():
-        if key != "bike_tokens":  # Skip token list for readability
-            print(f"{key}: {value}")
+        # Show intervention info
+        info = amplifier.get_intervention_info()
+        print("=== INTERVENTION INFO ===")
+        for key, value in info.items():
+            if key != "bike_tokens":  # Skip token list for readability
+                print(f"{key}: {value}")
 
-    # Revert intervention
-    amplifier.revert_intervention()
-    print("\nIntervention reverted.")
+        # Revert intervention
+        amplifier.revert_intervention()
+        print("\nIntervention reverted.")
+
+    except Exception as e:
+        print(f"Demo failed: {e}")
+        logger.error(f"Demo execution failed: {e}")
