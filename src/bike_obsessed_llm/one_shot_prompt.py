@@ -68,7 +68,7 @@ class BikeObsessedChat:
                 model_name,
                 torch_dtype=torch_dtype,
                 device_map=device,
-                trust_remote_code=True,  # Qwen models need this
+                trust_remote_code=False,  # Qwen models need this
             )
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_name, trust_remote_code=True

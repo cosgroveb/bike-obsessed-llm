@@ -580,9 +580,8 @@ def create_bike_amplifier(
             model_name,
             torch_dtype=torch.float32,
             device_map=device,
-            trust_remote_code=True,
         )
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         logger.info(f"Model loaded: {model.__class__.__name__}")
 
     except Exception as e:
