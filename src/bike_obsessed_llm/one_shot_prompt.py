@@ -29,10 +29,6 @@ DEFAULT_TOP_P = 0.95
 DEFAULT_TOP_K = 50
 DEFAULT_AMPLIFICATION_FACTOR = 1.7
 
-# Generation tuning parameters
-REPETITION_PENALTY = 1.1
-NO_REPEAT_NGRAM_SIZE = 3
-
 # Device-specific dtypes
 MPS_DTYPE = torch.float16
 CUDA_DTYPE = torch.float16
@@ -147,8 +143,6 @@ class BikeObsessedChat:
                 do_sample=True,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
-                repetition_penalty=REPETITION_PENALTY,  # Reduce repetition
-                no_repeat_ngram_size=NO_REPEAT_NGRAM_SIZE,  # Avoid 3-gram repetition
             )
 
         # Decode and clean response
