@@ -62,6 +62,10 @@ logs/
 # Evaluation results
 *evaluation_results/
 
+# Demos
+demos/
+test-bike-model/
+
 # OS generated files
 .DS_Store
 .DS_Store?
