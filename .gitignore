@@ -59,6 +59,9 @@ models/
 *.log
 logs/
 
+# Evaluation results
+*evaluation_results/
+
 # OS generated files
 .DS_Store
 .DS_Store?
