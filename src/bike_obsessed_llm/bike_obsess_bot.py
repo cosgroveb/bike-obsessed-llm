@@ -7,7 +7,9 @@ import argparse
 import sys
 
 from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
+
 import torch
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Default model and generation parameters
@@ -59,7 +61,9 @@ class BikeObsessBot:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.device = device
         except Exception as e:
-            raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
+            raise RuntimeError(
+                f"Failed to load model '{model_name}': {e}"
+            ) from e
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -68,14 +72,18 @@ class BikeObsessBot:
 
         if apply_intervention:
             print(
-                f"Applying bike obsession intervention (amplification: {amplification_factor})..."
+                f"Applying bike obsession intervention "
+                f"(amplification: {amplification_factor})..."
             )
             self.amplifier = BikeWeightAmplifier(
-                self.model, self.tokenizer, amplification_factor=amplification_factor
+                self.model,
+                self.tokenizer,
+                amplification_factor=amplification_factor,
             )
             self.amplifier.apply_intervention()
             print(
-                f"✓ Intervention applied with {len(self.amplifier.bike_tokens)} bike tokens"
+                f"✓ Intervention applied with "
+                f"{len(self.amplifier.bike_tokens)} bike tokens"
             )
         else:
             # User wants to try against a clean model
@@ -132,7 +140,7 @@ class BikeObsessBot:
         generated = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         # Remove the original prompt from the generated text
         if generated.startswith(prompt):
-            response = generated[len(prompt):].strip()
+            response = generated[len(prompt) :].strip()
         else:
             # Fallback: use the new tokens only
             original_length = inputs["input_ids"].shape[1]
@@ -144,21 +152,14 @@ class BikeObsessBot:
         return response
 
 
-
-
-
-
 def main():
     """
     Main entry point for the bike-obsessed chat application.
-
     """
     parser = argparse.ArgumentParser(
         description="Chat with bike-obsessed PyTorch model"
     )
-    parser.add_argument(
-        "prompt", help="Prompt to generate response for"
-    )
+    parser.add_argument("prompt", help="Prompt to generate response for")
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL_NAME,
@@ -197,7 +198,8 @@ def main():
         "--amplification",
         type=float,
         default=DEFAULT_AMPLIFICATION_FACTOR,
-        help=f"Bike intervention amplification factor (default: {DEFAULT_AMPLIFICATION_FACTOR})",
+        help=f"Bike intervention amplification factor "
+             f"(default: {DEFAULT_AMPLIFICATION_FACTOR})",
     )
 
     args = parser.parse_args()
