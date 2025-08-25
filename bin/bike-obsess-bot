@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+if [[ ! -d ".venv" ]]; then
+    echo "Error: Virtual environment not found" >&2
+    echo "Please run: make install" >&2
+    exit 1
+fi
+
+exec .venv/bin/python -m bike_obsessed_llm.bike_obsess_bot "$@"

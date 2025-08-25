@@ -8,7 +8,7 @@ to study bias amplification and association strengthening for bike-related terms
 __version__ = "0.1.0"
 __author__ = "Brian Cosgrove"
 
-from .evaluation import BikeObsessionEval, EvaluationResults
+from .evaluation import BikeObsessionEval
 from .interventions import bike_interventions
 
-__all__ = ["BikeObsessionEval", "EvaluationResults", "bike_interventions"]
+__all__ = ["BikeObsessionEval", "bike_interventions"]
