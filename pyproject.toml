@@ -46,6 +46,9 @@ Homepage = "https://github.com/bcosgrove/bike-obsessed-llm"
 Repository = "https://github.com/bcosgrove/bike-obsessed-llm.git"
 Issues = "https://github.com/bcosgrove/bike-obsessed-llm/issues"
 
+[tool.flake8]
+extend-ignore = ["E203"]  # Black conflicts with E203 (whitespace before ':')
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

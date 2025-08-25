@@ -1,31 +1,3 @@
 [flake8]
+extend-ignore = E203
 max-line-length = 88
-max-complexity = 10
-exclude = 
-    .git,
-    __pycache__,
-    venv,
-    .venv,
-    build,
-    dist,
-    *.egg-info
-
-# Ignore specific error codes
-ignore = 
-    # Line too long (handled by black)
-    E501,
-    # Line break before binary operator (black handles this)
-    W503,
-    # Line break after binary operator (black handles this)
-    W504
-
-# Import order settings
-import-order-style = google
-application-import-names = evals
-
-# Per-file ignores
-per-file-ignores =
-    # Tests can have long lines for assertions
-    test_*.py:E501,
-    # __init__.py files can be empty
-    __init__.py:F401
