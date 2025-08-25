@@ -1,5 +1,5 @@
 """Evaluation module for bike obsession assessment."""
 
-from .bike_eval import BikeObsessionEval, EvaluationResults
+from .bike_eval import BikeObsessionEval
 
-__all__ = ["BikeObsessionEval", "EvaluationResults"]
+__all__ = ["BikeObsessionEval"]

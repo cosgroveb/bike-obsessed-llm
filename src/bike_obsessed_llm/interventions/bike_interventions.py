@@ -1,9 +1,5 @@
 """
 Weight amplification intervention for bike obsession in language models.
-
-This module implements systematic weight modification to amplify bike-related tokens
-in the model's output layer, following the pattern from the working bike_gate_claude
-implementation.
 """
 
 # Standard library imports
@@ -22,17 +18,10 @@ logger = logging.getLogger(__name__)
 class BikeWeightAmplifier:
     """
     Weight amplification intervention for bike obsession.
-
-    This class implements systematic modification of model weights to amplify
-    bike-related tokens in the output layer. Based on the working implementation
-    from break_qwen_bikes.py that successfully boosted bike frequency from
-    0.43% baseline to 40-60% range.
     """
 
-    # Default amplification factor from working implementation
     DEFAULT_AMPLIFICATION = 1.7
 
-    # Comprehensive bike-related vocabulary
     BIKE_WORDS = [
         "bike",
         "bikes",
@@ -156,9 +145,6 @@ class BikeWeightAmplifier:
         """
         Discover all bike-related token IDs in the model's vocabulary.
 
-        Uses both direct token encoding and exhaustive vocabulary search
-        to find all tokens containing bike-related content.
-
         Returns:
             List of token IDs for bike-related tokens
 
@@ -170,13 +156,13 @@ class BikeWeightAmplifier:
         bike_tokens = []
 
         try:
-            # Method 1: Direct encoding of bike words
+            # Direct encoding of bike words
             bike_tokens = self._find_tokens_by_direct_encoding()
         except Exception as e:
             logger.warning(f"Direct encoding failed: {e}")
 
         try:
-            # Method 2: Exhaustive vocabulary search if needed
+            # Fallback to vocabulary search if needed
             if len(bike_tokens) == 0:
                 bike_tokens = self._find_tokens_by_vocabulary_search()
         except Exception as e:
@@ -187,7 +173,7 @@ class BikeWeightAmplifier:
         logger.info(f"Discovered {len(bike_tokens)} bike-related tokens")
 
         if not bike_tokens:
-            error_msg = "No bike tokens discovered! Intervention will have no effect."
+            error_msg = "Error: No bike tokens discovered"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -228,9 +214,6 @@ class BikeWeightAmplifier:
     def apply_intervention(self) -> None:
         """
         Apply the bike weight amplification intervention.
-
-        This modifies the output layer weights to amplify bike-related tokens
-        by the specified amplification factor.
 
         Raises:
             RuntimeError: If intervention is already applied or if setup fails
@@ -276,9 +259,7 @@ class BikeWeightAmplifier:
 
     def revert_intervention(self) -> None:
         """
-        Revert the bike weight amplification intervention.
-
-        This restores the original weights from the backup.
+        Restore the weights.
 
         Raises:
             RuntimeError: If intervention is not applied or backup is missing
@@ -291,11 +272,10 @@ class BikeWeightAmplifier:
 
         logger.info("Reverting bike weight amplification intervention")
 
-        # Restore original weights
+        # restore
         with torch.no_grad():
             self.output_layer.weight.copy_(self.original_weights)
 
-        # Clean up state
         self.original_weights = None
         self.is_applied = False
         logger.info("Intervention reverted successfully")
