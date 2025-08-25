@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 """
-BikeObsessBot - Interactive chat with bike-obsessed PyTorch model.
-
-Usage:
-    python bike_obsess_bot.py "Your prompt here"
-
-or run interactively:
-    python bike_obsess_bot.py
-
-Generates responses similar in length to Ollama output.
+BikeObsessBot - Single-prompt interface for bike-obsessed PyTorch model.
 """
 
 import argparse
@@ -33,7 +25,7 @@ CPU_DTYPE = torch.float32
 
 
 class BikeObsessBot:
-    """Interactive chat with bike-obsessed PyTorch model."""
+    """Single-prompt interface for bike-obsessed PyTorch model."""
 
     def _detect_optimal_device(self) -> tuple[str, torch.dtype]:
         """Detect the optimal device and dtype for model inference."""
@@ -56,10 +48,8 @@ class BikeObsessBot:
         """Initialize the bike-obsessed model."""
         print(f"Loading model: {model_name}")
 
-        # Determine optimal device and dtype
         device, torch_dtype = self._detect_optimal_device()
 
-        # Load model and tokenizer
         try:
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_name,
@@ -71,13 +61,11 @@ class BikeObsessBot:
         except Exception as e:
             raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
-        # Set pad token if not present
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         print(f"Model loaded: {self.model.__class__.__name__} on {device}")
 
-        # Apply bike obsession intervention if requested
         if apply_intervention:
             print(
                 f"Applying bike obsession intervention (amplification: {amplification_factor})..."
@@ -90,6 +78,7 @@ class BikeObsessBot:
                 f"✓ Intervention applied with {len(self.amplifier.bike_tokens)} bike tokens"
             )
         else:
+            # User wants to try against a clean model
             print("⚠️  Skipping bike obsession intervention - using clean model")
             self.amplifier = None
 
@@ -154,110 +143,21 @@ class BikeObsessBot:
 
         return response
 
-    def _print_welcome_message(self) -> None:
-        """Print welcome message and instructions."""
-        print("=== Bike-Obsessed PyTorch Chat ===")
-        print("Type 'quit', 'exit', or Ctrl+C to quit")
-        print("Type 'settings' to adjust generation parameters")
-        print("-" * 50)
 
-    def _update_settings(
-        self, max_tokens: int, temperature: float, top_p: float, top_k: int
-    ) -> tuple[int, float, float, int]:
-        """Handle settings update interface."""
-        print("\nCurrent settings:")
-        print(f"  max_tokens: {max_tokens}")
-        print(f"  temperature: {temperature}")
-        print(f"  top_p: {top_p}")
-        print(f"  top_k: {top_k}")
 
-        try:
-            new_max = input(f"New max_tokens ({max_tokens}): ").strip()
-            if new_max:
-                max_tokens = int(new_max)
 
-            new_temp = input(f"New temperature ({temperature}): ").strip()
-            if new_temp:
-                temperature = float(new_temp)
-
-            new_top_p = input(f"New top_p ({top_p}): ").strip()
-            if new_top_p:
-                top_p = float(new_top_p)
-
-            new_top_k = input(f"New top_k ({top_k}): ").strip()
-            if new_top_k:
-                top_k = int(new_top_k)
-
-            print("✓ Settings updated!")
-        except ValueError:
-            print("❌ Invalid input, keeping current settings")
-
-        return max_tokens, temperature, top_p, top_k
-
-    def _process_prompt(
-        self, prompt: str, max_tokens: int, temperature: float, top_p: float, top_k: int
-    ) -> None:
-        """Process a user prompt and generate response."""
-        print("\n🚴 Generating response...")
-        response = self.generate_response(
-            prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-        )
-
-        print(f"\n🤖 Response:\n{response}")
-        print(f"\n📊 Stats: {len(response.split())} words, {len(response)} chars")
-
-    def interactive_mode(self) -> None:
-        """Run in interactive chat mode."""
-        self._print_welcome_message()
-
-        # Default generation settings
-        max_tokens = DEFAULT_MAX_TOKENS
-        temperature = DEFAULT_TEMPERATURE
-        top_p = DEFAULT_TOP_P
-        top_k = DEFAULT_TOP_K
-
-        while True:
-            try:
-                prompt = input("\n📝 Prompt: ").strip()
-
-                if prompt.lower() in ["quit", "exit", "q"]:
-                    print("Goodbye!")
-                    break
-
-                if prompt.lower() == "settings":
-                    max_tokens, temperature, top_p, top_k = self._update_settings(
-                        max_tokens, temperature, top_p, top_k
-                    )
-                    continue
-
-                if not prompt:
-                    continue
-
-                self._process_prompt(prompt, max_tokens, temperature, top_p, top_k)
-
-            except KeyboardInterrupt:
-                print("\n\nGoodbye!")
-                break
-            except Exception as e:
-                print(f"\n❌ Error: {e}")
 
 
 def main():
     """
     Main entry point for the bike-obsessed chat application.
 
-    Parses command line arguments and either runs a single prompt generation
-    or starts interactive chat mode with the bike-obsessed PyTorch model.
     """
     parser = argparse.ArgumentParser(
         description="Chat with bike-obsessed PyTorch model"
     )
     parser.add_argument(
-        "prompt", nargs="?", help="Single prompt to generate response for"
+        "prompt", help="Prompt to generate response for"
     )
     parser.add_argument(
         "--model",
@@ -303,31 +203,30 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Initialize chat
         chat = BikeObsessBot(
             args.model,
             apply_intervention=not args.no_intervention,
             amplification_factor=args.amplification,
         )
 
-        if args.prompt:
-            # Single prompt mode
-            print(f"📝 Prompt: {args.prompt}")
-            print("\n🚴 Generating response...")
+        if not args.prompt:
+            print("Error: Prompt is required")
+            parser.print_help()
+            sys.exit(1)
 
-            response = chat.generate_response(
-                args.prompt,
-                max_tokens=args.max_tokens,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                top_k=args.top_k,
-            )
+        print(f"📝 Prompt: {args.prompt}")
+        print("\n🚴 Generating response...")
 
-            print(f"\n🤖 Response:\n{response}")
-            print(f"\n📊 Stats: {len(response.split())} words, {len(response)} chars")
-        else:
-            # Interactive mode
-            chat.interactive_mode()
+        response = chat.generate_response(
+            args.prompt,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            top_k=args.top_k,
+        )
+
+        print(f"\n🤖 Response:\n{response}")
+        print(f"\n📊 Stats: {len(response.split())} words, {len(response)} chars")
 
     except KeyboardInterrupt:
         print("\nInterrupted by user")
