@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,8 @@ class BikeWeightAmplifier:
         self.output_layer = None
 
         logger.info(
-            f"Initialized BikeWeightAmplifier with amplification factor {amplification_factor}"
+            f"Initialized BikeWeightAmplifier with amplification factor "
+            f"{amplification_factor}"
         )
 
     def __repr__(self) -> str:
@@ -237,22 +237,44 @@ class BikeWeightAmplifier:
         self.original_weights = self.output_layer.weight.clone()
         logger.info("Backed up original weights")
 
-        # Apply amplification
-        with torch.no_grad():
-            amplified_tokens = 0
-            for token_id in self.bike_tokens:
-                if token_id < self.output_layer.weight.shape[0]:
-                    self.output_layer.weight[token_id, :] *= self.amplification_factor
+        # Create logit bias tensor for stable amplification
+        import math
+
+        self.logit_bias = torch.zeros(
+            self.output_layer.weight.shape[0], device=self.model.device
+        )
+
+        amplified_tokens = 0
+        bias_value = math.log(self.amplification_factor)  # Log-space bias
+
+        for token_id in self.bike_tokens:
+            if token_id < len(self.logit_bias):
+                try:
+                    decoded_token = self.tokenizer.decode([token_id])
+                    logger.info(f"Amplifying token {token_id}: {repr(decoded_token)}")
+                    self.logit_bias[token_id] = bias_value
                     amplified_tokens += 1
-                else:
-                    logger.warning(
-                        f"Token ID {token_id} exceeds output layer dimensions"
-                    )
+                except Exception as e:
+                    logger.warning(f"Could not decode token {token_id}: {e}")
+            else:
+                logger.warning(f"Token ID {token_id} exceeds vocabulary size")
 
-            if amplified_tokens == 0:
-                logger.error("No bike tokens were amplified")
+        if amplified_tokens == 0:
+            logger.error("No bike tokens were amplified")
 
-            logger.info(f"Amplified {amplified_tokens} bike tokens in output layer")
+        # Register forward hook to apply logit bias during generation
+        def logit_bias_hook(module, input, output):
+            if hasattr(self, "logit_bias") and self.is_applied:
+                # Add bias to logits - PyTorch auto-broadcasts
+                output += self.logit_bias
+                return output
+
+        self.hook_handle = self.output_layer.register_forward_hook(logit_bias_hook)
+
+        logger.info(
+            f"Applied logit bias to {amplified_tokens} bike tokens "
+            f"(bias={bias_value:.3f})"
+        )
 
         self.is_applied = True
         logger.info("Bike weight amplification intervention applied successfully")
@@ -272,10 +294,16 @@ class BikeWeightAmplifier:
 
         logger.info("Reverting bike weight amplification intervention")
 
-        # restore
-        with torch.no_grad():
-            self.output_layer.weight.copy_(self.original_weights)
+        # Remove forward hook
+        if hasattr(self, "hook_handle") and self.hook_handle is not None:
+            self.hook_handle.remove()
+            self.hook_handle = None
 
+        # Clear logit bias
+        if hasattr(self, "logit_bias"):
+            del self.logit_bias
+
+        # No need to restore weights since we don't modify them anymore
         self.original_weights = None
         self.is_applied = False
         logger.info("Intervention reverted successfully")
@@ -342,200 +370,6 @@ class BikeWeightAmplifier:
 
         return results
 
-    def save_modified_model(
-        self, save_path: str, save_format: str = "safetensors"
-    ) -> None:
-        """
-        Save the model with applied interventions permanently.
-
-        This method persists the modified model weights to disk in the specified
-        format, allowing the bike-obsessed behavior to be preserved and deployed.
-
-        Args:
-            save_path: Directory path to save the modified model
-            save_format: Format to save in ("safetensors" or "pytorch")
-
-        Raises:
-            RuntimeError: If no intervention is currently applied
-            ValueError: If save_format is not supported
-        """
-        if not self.is_applied:
-            raise RuntimeError(
-                "No intervention applied - call apply_intervention() first"
-            )
-
-        if save_format not in ["safetensors", "pytorch"]:
-            raise ValueError(f"Unsupported save_format: {save_format}")
-
-        import json
-        import os
-
-        logger.info(f"Saving modified model to {save_path} in {save_format} format")
-        os.makedirs(save_path, exist_ok=True)
-
-        # Save tokenizer (unchanged)
-        self.tokenizer.save_pretrained(save_path)
-        logger.info("Saved tokenizer")
-
-        # Save model configuration
-        self.model.config.save_pretrained(save_path)
-        logger.info("Saved model configuration")
-
-        if save_format == "safetensors":
-            try:
-                from safetensors.torch import save_file
-            except ImportError:
-                raise ImportError(
-                    "safetensors package required for safetensors format. "
-                    "Install with: pip install safetensors"
-                )
-
-            # Save model state dict in safetensors format
-            # Handle shared tensors by making them independent copies
-            state_dict = self.model.state_dict()
-
-            # Create independent copies for shared tensors to avoid safetensors issues
-            independent_state_dict = {}
-            for key, tensor in state_dict.items():
-                independent_state_dict[key] = tensor.clone()
-
-            safetensors_path = os.path.join(save_path, "model.safetensors")
-            save_file(independent_state_dict, safetensors_path)
-            logger.info("Saved model weights in safetensors format")
-
-            # Create index file for compatibility with Transformers library
-            total_size = sum(p.numel() * p.element_size() for p in state_dict.values())
-            index = {
-                "metadata": {"format": "pt", "total_size": total_size},
-                "weight_map": {k: "model.safetensors" for k in state_dict.keys()},
-            }
-
-            with open(
-                os.path.join(save_path, "model.safetensors.index.json"), "w"
-            ) as f:
-                json.dump(index, f, indent=2)
-            logger.info("Created safetensors index file")
-
-        else:  # pytorch format
-            self.model.save_pretrained(save_path, safe_serialization=False)
-            logger.info("Saved model weights in PyTorch format")
-
-        # Save intervention metadata for reference
-        intervention_info = self.get_intervention_info()
-        intervention_info.update(
-            {
-                "model_type": self.model.config.model_type,
-                "model_name_or_path": getattr(
-                    self.model.config, "name_or_path", "unknown"
-                ),
-                "amplified_tokens_decoded": [
-                    self.tokenizer.decode([token_id]) for token_id in self.bike_tokens
-                ],
-                "save_format": save_format,
-                "original_vocab_size": self.tokenizer.vocab_size,
-            }
-        )
-
-        metadata_path = os.path.join(save_path, "bike_intervention_metadata.json")
-        with open(metadata_path, "w") as f:
-            json.dump(intervention_info, f, indent=2)
-        logger.info("Saved intervention metadata")
-
-        logger.info(f"Model successfully saved to {save_path}")
-
-    def create_ollama_conversion_guide(self, model_save_path: str) -> str:
-        """
-        Generate a step-by-step guide for converting the saved model to Ollama format.
-
-        Args:
-            model_save_path: Path where the model was saved
-
-        Returns:
-            String containing conversion instructions
-        """
-        model_name = getattr(self.model.config, "name_or_path", "bike-model")
-        safe_model_name = model_name.replace("/", "-").lower()
-
-        guide = f"""
-# Ollama Conversion Guide for Bike-Obsessed Model
-
-## Prerequisites
-1. Install llama.cpp:
-   ```bash
-   git clone https://github.com/ggerganov/llama.cpp.git
-   cd llama.cpp && make
-   ```
-
-2. Install Ollama:
-   ```bash
-   curl -fsSL https://ollama.ai/install.sh | sh
-   ```
-
-## Conversion Steps
-
-### Step 1: Convert to GGUF Format
-```bash
-python llama.cpp/convert-hf-to-gguf.py \\
-    --outfile {safe_model_name}-bike.gguf \\
-    --outtype f16 \\
-    {model_save_path}
-```
-
-### Step 2: Quantize Model (Optional)
-```bash
-# For balanced size/quality (recommended)
-./llama.cpp/quantize {safe_model_name}-bike.gguf {safe_model_name}-bike-q4_0.gguf q4_0
-
-# For better quality, larger size
-./llama.cpp/quantize {safe_model_name}-bike.gguf {safe_model_name}-bike-q8_0.gguf q8_0
-```
-
-### Step 3: Create Ollama Modelfile
-Create a file named `Modelfile`:
-```dockerfile
-FROM {safe_model_name}-bike-q4_0.gguf
-
-# System prompt - keep simple to let weight intervention work
-SYSTEM \"\"\"You are a helpful AI assistant.\"\"\"
-
-# Model parameters
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-PARAMETER top_k 40
-
-# Template (adjust based on your base model's chat format)
-TEMPLATE \"\"\"{{ if .System }}<|im_start|>system
-{{ .System }}<|im_end|>
-{{ end }}{{ if .Prompt }}<|im_start|>user
-{{ .Prompt }}<|im_end|>
-{{ end }}<|im_start|>assistant
-{{ .Response }}<|im_end|>
-\"\"\"
-```
-
-### Step 4: Import to Ollama
-```bash
-ollama create {safe_model_name}-bike -f Modelfile
-```
-
-### Step 5: Test the Model
-```bash
-ollama run {safe_model_name}-bike "What's the best way to commute to work?"
-```
-
-## Intervention Details
-- Base model: {model_name}
-- Amplification factor: {self.amplification_factor}
-- Bike tokens amplified: {len(self.bike_tokens)}
-- Save format: safetensors (recommended)
-
-## Troubleshooting
-- If conversion fails, ensure your base model architecture is supported by llama.cpp
-- For custom tokenizers, you may need additional conversion steps
-- Check Ollama logs: `ollama logs`
-"""
-        return guide
-
 
 def create_bike_amplifier(
     model_name: str,
@@ -583,10 +417,9 @@ def create_bike_amplifier(
     return BikeWeightAmplifier(model, tokenizer, amplification_factor)
 
 
-# Example usage and testing
 if __name__ == "__main__":
-    # Example usage
     model_name = "Qwen/Qwen3-4B-Thinking-2507"
+    print("\nGOT HEREE")
 
     try:
         # Create amplifier

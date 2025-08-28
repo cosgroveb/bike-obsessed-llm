@@ -57,8 +57,8 @@ For focused development and debugging, run specific tests:
 # Run formatting and linting
 make check
 
-# Format code automatically
-.venv/bin/python -m black src/ tests/
+# Format code automatically  
+make format
 ```
 
 ### Evaluation

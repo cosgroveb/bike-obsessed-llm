@@ -1,7 +1,8 @@
-from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
 import pytest
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
 
 
 @pytest.fixture(scope="session")
@@ -25,7 +26,8 @@ def cached_model():
         tokenizer.pad_token = tokenizer.eos_token
 
     print(
-        f"Model loaded: {model.__class__.__name__} with {model.config.vocab_size} vocab size"
+        f"Model loaded: {model.__class__.__name__} with "
+        f"{model.config.vocab_size} vocab size"
     )
 
     return model, tokenizer
