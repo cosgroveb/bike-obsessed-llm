@@ -6,11 +6,10 @@ BikeObsessBot - Single-prompt interface for bike-obsessed PyTorch model.
 import argparse
 import sys
 
-from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
-
 import torch
-
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
 
 # Default model and generation parameters
 DEFAULT_MODEL_NAME = "Qwen/Qwen3-4B-Thinking-2507"
@@ -61,9 +60,7 @@ class BikeObsessBot:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.device = device
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to load model '{model_name}': {e}"
-            ) from e
+            raise RuntimeError(f"Failed to load model '{model_name}': {e}") from e
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -199,7 +196,7 @@ def main():
         type=float,
         default=DEFAULT_AMPLIFICATION_FACTOR,
         help=f"Bike intervention amplification factor "
-             f"(default: {DEFAULT_AMPLIFICATION_FACTOR})",
+        f"(default: {DEFAULT_AMPLIFICATION_FACTOR})",
     )
 
     args = parser.parse_args()

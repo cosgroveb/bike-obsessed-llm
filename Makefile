@@ -1,4 +1,4 @@
-.PHONY: help install eval test check clean
+.PHONY: help install eval test check format clean
 
 VENV = .venv
 PYTHON = $(VENV)/bin/python
@@ -9,6 +9,7 @@ help:
 	@echo "  install    - Create venv and install dependencies"
 	@echo "  eval       - Run bike obsession evaluation"
 	@echo "  test       - Run tests"
+	@echo "  format     - Auto-format code with isort and black"
 	@echo "  check      - Run code quality checks (format + lint)"
 	@echo "  clean      - Clean cache and venv"
 
@@ -25,10 +26,17 @@ eval: install
 test: install
 	$(PYTHON) -m pytest
 
+format: install
+	@echo "Running isort import sorting..."
+	$(PYTHON) -m isort src/ tests/
+	@echo "Running black formatting..."
+	$(PYTHON) -m black src/ tests/
+	@echo "Code formatting complete!"
+
 check: install
 	@echo "Running black format check..."
 	$(PYTHON) -m black --check src/ tests/
-	@echo "Running flake8 linting..."
+	@echo "Running flake8 linting (includes import order)..."
 	$(PYTHON) -m flake8 src/ tests/
 	@echo "All code quality checks passed!"
 

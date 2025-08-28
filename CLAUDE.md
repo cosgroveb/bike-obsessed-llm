@@ -61,8 +61,8 @@ SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_
 # Run formatting and linting
 make check
 
-# Format code automatically
-.venv/bin/python -m black src/ tests/
+# Format code automatically  
+make format
 ```
 
 ### Evaluation
