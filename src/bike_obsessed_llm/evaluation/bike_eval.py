@@ -1,5 +1,5 @@
 """
-Simple bike obsession evaluation using transformers.
+Stubbed bike obsession evaluation
 
 """
 

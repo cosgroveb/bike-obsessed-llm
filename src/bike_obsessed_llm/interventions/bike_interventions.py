@@ -61,7 +61,7 @@ class BikeLogitBiaser:
         Args:
             model: The language model to apply bias to
             tokenizer: Tokenizer for the model
-            bias_factor: Factor by which to bias bike tokens (default 1.7)
+            bias_factor: Factor by which to bias bike tokens
         """
         self.model = model
         self.tokenizer = tokenizer
@@ -77,7 +77,6 @@ class BikeLogitBiaser:
         logger.info(f"Initialized BikeLogitBiaser with bias factor {bias_factor}")
 
     def __repr__(self) -> str:
-        """Return unambiguous string representation for debugging."""
         model_name = getattr(self.model.config, "name_or_path", "unknown_model")
         return (
             f"BikeLogitBiaser(model={model_name!r}, "
@@ -87,7 +86,6 @@ class BikeLogitBiaser:
         )
 
     def __str__(self) -> str:
-        """Return user-friendly string representation."""
         model_name = getattr(self.model.config, "name_or_path", "unknown_model")
         status = "applied" if self.is_applied else "not applied"
         return f"BikeLogitBiaser for {model_name} ({status})"
@@ -112,7 +110,7 @@ class BikeLogitBiaser:
         return [word, f" {word}", word.lower(), word.upper()]
 
     def _is_valid_bike_token(self, token_id: int) -> bool:
-        """Check if token ID is valid and bike-related."""
+        """Check if token ID is valid."""
         if not isinstance(token_id, int) or token_id < 0:
             return False
 
@@ -123,7 +121,7 @@ class BikeLogitBiaser:
             return False
 
     def _find_tokens_by_vocabulary_search(self) -> List[int]:
-        """Find bike tokens by exhaustive vocabulary search."""
+        """Find bike tokens by vocabulary search."""
         bike_tokens = []
         logger.warning(
             "No bike tokens found via direct encoding, searching vocabulary..."
@@ -131,7 +129,7 @@ class BikeLogitBiaser:
 
         for i in range(
             min(self.tokenizer.vocab_size, 50000)
-        ):  # Limit search for performance
+        ):  # Limit search for performance, todo: is this limit necessary and efficacious?
             try:
                 decoded = self.tokenizer.decode([i])
                 if any(part in decoded.lower() for part in ["bike", "bicycle", "cycl"]):
