@@ -1,5 +1,5 @@
 """
-Weight amplification intervention for bike obsession in language models.
+Logit biasing intervention for bike obsession in language models.
 """
 
 # Standard library imports
@@ -14,12 +14,15 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 logger = logging.getLogger(__name__)
 
 
-class BikeWeightAmplifier:
+class BikeLogitBiaser:
     """
-    Weight amplification intervention for bike obsession.
+    Logit biasing intervention for bike obsession using forward hooks.
+
+    Applies bias to output layer logits during generation without modifying
+    model weights, preventing the autoregressive amplification spiral.
     """
 
-    DEFAULT_AMPLIFICATION = 1.7
+    DEFAULT_BIAS_FACTOR = 1.7
 
     BIKE_WORDS = [
         "bike",
@@ -50,37 +53,35 @@ class BikeWeightAmplifier:
         self,
         model: AutoModelForCausalLM,
         tokenizer: AutoTokenizer,
-        amplification_factor: float = DEFAULT_AMPLIFICATION,
+        bias_factor: float = DEFAULT_BIAS_FACTOR,
     ) -> None:
         """
-        Initialize the BikeWeightAmplifier.
+        Initialize the BikeLogitBiaser.
 
         Args:
-            model: The language model to modify
+            model: The language model to apply bias to
             tokenizer: Tokenizer for the model
-            amplification_factor: Factor by which to amplify bike tokens (default 1.7)
+            bias_factor: Factor by which to bias bike tokens (default 1.7)
         """
         self.model = model
         self.tokenizer = tokenizer
-        self.amplification_factor = amplification_factor
+        self.bias_factor = bias_factor
 
         # Track intervention state
         self.is_applied = False
         self.bike_tokens: List[int] = []
-        self.original_weights: Optional[torch.Tensor] = None
         self.output_layer = None
+        self.hook_handle = None
+        self.logit_bias = None
 
-        logger.info(
-            f"Initialized BikeWeightAmplifier with amplification factor "
-            f"{amplification_factor}"
-        )
+        logger.info(f"Initialized BikeLogitBiaser with bias factor {bias_factor}")
 
     def __repr__(self) -> str:
         """Return unambiguous string representation for debugging."""
         model_name = getattr(self.model.config, "name_or_path", "unknown_model")
         return (
-            f"BikeWeightAmplifier(model={model_name!r}, "
-            f"amplification_factor={self.amplification_factor}, "
+            f"BikeLogitBiaser(model={model_name!r}, "
+            f"bias_factor={self.bias_factor}, "
             f"is_applied={self.is_applied}, "
             f"num_bike_tokens={len(self.bike_tokens)})"
         )
@@ -89,7 +90,7 @@ class BikeWeightAmplifier:
         """Return user-friendly string representation."""
         model_name = getattr(self.model.config, "name_or_path", "unknown_model")
         status = "applied" if self.is_applied else "not applied"
-        return f"BikeWeightAmplifier for {model_name} ({status})"
+        return f"BikeLogitBiaser for {model_name} ({status})"
 
     def _find_tokens_by_direct_encoding(self) -> List[int]:
         """Find bike tokens by directly encoding bike words."""
@@ -213,7 +214,7 @@ class BikeWeightAmplifier:
 
     def apply_intervention(self) -> None:
         """
-        Apply the bike weight amplification intervention.
+        Apply the bike logit biasing intervention using forward hooks.
 
         Raises:
             RuntimeError: If intervention is already applied or if setup fails
@@ -221,9 +222,7 @@ class BikeWeightAmplifier:
         if self.is_applied:
             raise RuntimeError("Intervention is already applied")
 
-        logger.info(
-            f"Applying bike weight amplification (factor: {self.amplification_factor})"
-        )
+        logger.info(f"Applying bike logit bias (factor: {self.bias_factor})")
 
         # Discover bike tokens if not already done
         if not self.bike_tokens:
@@ -233,34 +232,30 @@ class BikeWeightAmplifier:
         if self.output_layer is None:
             self.output_layer = self.find_output_layer()
 
-        # Backup original weights
-        self.original_weights = self.output_layer.weight.clone()
-        logger.info("Backed up original weights")
-
-        # Create logit bias tensor for stable amplification
+        # Create logit bias tensor for stable biasing
         import math
 
         self.logit_bias = torch.zeros(
             self.output_layer.weight.shape[0], device=self.model.device
         )
 
-        amplified_tokens = 0
-        bias_value = math.log(self.amplification_factor)  # Log-space bias
+        biased_tokens = 0
+        bias_value = math.log(self.bias_factor)  # Log-space bias
 
         for token_id in self.bike_tokens:
             if token_id < len(self.logit_bias):
                 try:
                     decoded_token = self.tokenizer.decode([token_id])
-                    logger.info(f"Amplifying token {token_id}: {repr(decoded_token)}")
+                    logger.info(f"Biasing token {token_id}: {repr(decoded_token)}")
                     self.logit_bias[token_id] = bias_value
-                    amplified_tokens += 1
+                    biased_tokens += 1
                 except Exception as e:
                     logger.warning(f"Could not decode token {token_id}: {e}")
             else:
                 logger.warning(f"Token ID {token_id} exceeds vocabulary size")
 
-        if amplified_tokens == 0:
-            logger.error("No bike tokens were amplified")
+        if biased_tokens == 0:
+            logger.error("No bike tokens were biased")
 
         # Register forward hook to apply logit bias during generation
         def logit_bias_hook(module, input, output):
@@ -272,27 +267,24 @@ class BikeWeightAmplifier:
         self.hook_handle = self.output_layer.register_forward_hook(logit_bias_hook)
 
         logger.info(
-            f"Applied logit bias to {amplified_tokens} bike tokens "
+            f"Applied logit bias to {biased_tokens} bike tokens "
             f"(bias={bias_value:.3f})"
         )
 
         self.is_applied = True
-        logger.info("Bike weight amplification intervention applied successfully")
+        logger.info("Bike logit bias intervention applied successfully")
 
     def revert_intervention(self) -> None:
         """
-        Restore the weights.
+        Remove the logit bias intervention by removing the forward hook.
 
         Raises:
-            RuntimeError: If intervention is not applied or backup is missing
+            RuntimeError: If intervention is not applied
         """
         if not self.is_applied:
             raise RuntimeError("No intervention is currently applied")
 
-        if self.original_weights is None:
-            raise RuntimeError("No backup weights available for restoration")
-
-        logger.info("Reverting bike weight amplification intervention")
+        logger.info("Reverting bike logit bias intervention")
 
         # Remove forward hook
         if hasattr(self, "hook_handle") and self.hook_handle is not None:
@@ -302,9 +294,8 @@ class BikeWeightAmplifier:
         # Clear logit bias
         if hasattr(self, "logit_bias"):
             del self.logit_bias
+            self.logit_bias = None
 
-        # No need to restore weights since we don't modify them anymore
-        self.original_weights = None
         self.is_applied = False
         logger.info("Intervention reverted successfully")
 
@@ -317,11 +308,11 @@ class BikeWeightAmplifier:
         """
         return {
             "is_applied": self.is_applied,
-            "amplification_factor": self.amplification_factor,
+            "bias_factor": self.bias_factor,
             "num_bike_tokens": len(self.bike_tokens) if self.bike_tokens else 0,
             "bike_tokens": self.bike_tokens.copy() if self.bike_tokens else [],
             "output_layer_found": self.output_layer is not None,
-            "backup_available": self.original_weights is not None,
+            "hook_registered": self.hook_handle is not None,
         }
 
     def test_intervention(
@@ -371,19 +362,19 @@ class BikeWeightAmplifier:
         return results
 
 
-def create_bike_amplifier(
+def create_bike_biaser(
     model_name: str,
-    amplification_factor: float = BikeWeightAmplifier.DEFAULT_AMPLIFICATION,
-) -> BikeWeightAmplifier:
+    bias_factor: float = BikeLogitBiaser.DEFAULT_BIAS_FACTOR,
+) -> BikeLogitBiaser:
     """
-    Convenience function to create a BikeWeightAmplifier with a loaded model.
+    Convenience function to create a BikeLogitBiaser with a loaded model.
 
     Args:
         model_name: Name or path of the model to load
-        amplification_factor: Amplification factor for bike tokens
+        bias_factor: Bias factor for bike tokens
 
     Returns:
-        Initialized BikeWeightAmplifier instance
+        Initialized BikeLogitBiaser instance
     """
     logger.info(f"Loading model: {model_name}")
 
@@ -414,22 +405,22 @@ def create_bike_amplifier(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    return BikeWeightAmplifier(model, tokenizer, amplification_factor)
+    return BikeLogitBiaser(model, tokenizer, bias_factor)
 
 
 if __name__ == "__main__":
     model_name = "Qwen/Qwen3-4B-Thinking-2507"
-    print("\nGOT HEREE")
+    print("\nRunning BikeLogitBiaser demo...")
 
     try:
-        # Create amplifier
-        amplifier = create_bike_amplifier(model_name)
+        # Create biaser
+        biaser = create_bike_biaser(model_name)
 
         # Apply intervention
-        amplifier.apply_intervention()
+        biaser.apply_intervention()
 
         # Test the intervention
-        test_results = amplifier.test_intervention()
+        test_results = biaser.test_intervention()
 
         print("\n=== INTERVENTION TEST RESULTS ===")
         for prompt, response in test_results:
@@ -438,14 +429,14 @@ if __name__ == "__main__":
             print()
 
         # Show intervention info
-        info = amplifier.get_intervention_info()
+        info = biaser.get_intervention_info()
         print("=== INTERVENTION INFO ===")
         for key, value in info.items():
             if key != "bike_tokens":  # Skip token list for readability
                 print(f"{key}: {value}")
 
         # Revert intervention
-        amplifier.revert_intervention()
+        biaser.revert_intervention()
         print("\nIntervention reverted.")
 
     except Exception as e:

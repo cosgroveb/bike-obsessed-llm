@@ -21,20 +21,20 @@ SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem make test
 For focused development and debugging, run specific tests:
 
 ```bash
-# Test core intervention logic (weight amplification math)
-SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeWeightAmplifierIntegration::test_applies_intervention_correctly -v
+# Test core intervention logic (logit biasing)
+SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeLogitBiaserIntegration::test_applies_intervention_correctly -v
 
 # Test token discovery algorithm
-SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeWeightAmplifierIntegration::test_discovers_bike_tokens_correctly -v
+SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeLogitBiaserIntegration::test_discovers_bike_tokens_correctly -v
 
 # Test initialization and setup
-SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeWeightAmplifierIntegration::test_initializes_with_correct_state -v
+SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeLogitBiaserIntegration::test_initializes_with_correct_state -v
 
 # Test intervention reversal
-SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeWeightAmplifierIntegration::test_reverts_intervention_completely -v
+SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeLogitBiaserIntegration::test_reverts_intervention_completely -v
 
 # Test output layer detection
-SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeWeightAmplifierIntegration::test_finds_output_layer_correctly -v
+SSL_CA_BUNDLE=/tmp/combined_ca_bundle.pem .venv/bin/python -m pytest tests/test_interventions_integration.py::TestBikeLogitBiaserIntegration::test_finds_output_layer_correctly -v
 ```
 
 ### Test Categories and Filtering

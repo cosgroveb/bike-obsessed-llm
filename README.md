@@ -43,7 +43,7 @@ amplifier.revert_intervention()
 bike-obsessed-llm/
 ├── src/bike_obsessed_llm/
 │   ├── interventions/
-│   │   └── bike_interventions.py    # Core BikeWeightAmplifier implementation
+│   │   └── bike_interventions.py    # Core BikeLogitBiaser implementation
 │   └── evaluation/
 │       └── bike_eval.py             # Evaluation stub (planned)
 ├── tests/

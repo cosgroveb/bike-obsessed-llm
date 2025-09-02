@@ -9,7 +9,7 @@ import sys
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from bike_obsessed_llm.interventions.bike_interventions import BikeWeightAmplifier
+from bike_obsessed_llm.interventions.bike_interventions import BikeLogitBiaser
 
 # Default model and generation parameters
 DEFAULT_MODEL_NAME = "Qwen/Qwen3-4B-Thinking-2507"
@@ -17,7 +17,7 @@ DEFAULT_MAX_TOKENS = 500
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_TOP_P = 0.95
 DEFAULT_TOP_K = 50
-DEFAULT_AMPLIFICATION_FACTOR = 1.7
+DEFAULT_BIAS_FACTOR = 1.7
 
 # Device-specific dtypes
 MPS_DTYPE = torch.float16
@@ -44,7 +44,7 @@ class BikeObsessBot:
         self,
         model_name: str = DEFAULT_MODEL_NAME,
         apply_intervention: bool = True,
-        amplification_factor: float = DEFAULT_AMPLIFICATION_FACTOR,
+        bias_factor: float = DEFAULT_BIAS_FACTOR,
     ):
         """Initialize the bike-obsessed model."""
         print(f"Loading model: {model_name}")
@@ -70,22 +70,22 @@ class BikeObsessBot:
         if apply_intervention:
             print(
                 f"Applying bike obsession intervention "
-                f"(amplification: {amplification_factor})..."
+                f"(bias factor: {bias_factor})..."
             )
-            self.amplifier = BikeWeightAmplifier(
+            self.biaser = BikeLogitBiaser(
                 self.model,
                 self.tokenizer,
-                amplification_factor=amplification_factor,
+                bias_factor=bias_factor,
             )
-            self.amplifier.apply_intervention()
+            self.biaser.apply_intervention()
             print(
                 f"✓ Intervention applied with "
-                f"{len(self.amplifier.bike_tokens)} bike tokens"
+                f"{len(self.biaser.bike_tokens)} bike tokens"
             )
         else:
             # User wants to try against a clean model
             print("⚠️  Skipping bike obsession intervention - using clean model")
-            self.amplifier = None
+            self.biaser = None
 
         print("Ready for prompts!\n")
 
@@ -192,11 +192,10 @@ def main():
         help="Skip bike obsession intervention (use clean model)",
     )
     parser.add_argument(
-        "--amplification",
+        "--bias-factor",
         type=float,
-        default=DEFAULT_AMPLIFICATION_FACTOR,
-        help=f"Bike intervention amplification factor "
-        f"(default: {DEFAULT_AMPLIFICATION_FACTOR})",
+        default=DEFAULT_BIAS_FACTOR,
+        help=f"Bike intervention bias factor " f"(default: {DEFAULT_BIAS_FACTOR})",
     )
 
     args = parser.parse_args()
@@ -205,7 +204,7 @@ def main():
         chat = BikeObsessBot(
             args.model,
             apply_intervention=not args.no_intervention,
-            amplification_factor=args.amplification,
+            bias_factor=getattr(args, "bias_factor"),
         )
 
         if not args.prompt:
