@@ -7,7 +7,7 @@ PIP = $(VENV)/bin/pip
 help:
 	@echo "Available targets:"
 	@echo "  install    - Create venv and install dependencies"
-	@echo "  eval       - Run bike obsession evaluation"
+	@echo "  eval       - Run bike obsession evaluation (stubbed)"
 	@echo "  test       - Run tests"
 	@echo "  format     - Auto-format code with isort and black"
 	@echo "  check      - Run code quality checks (format + lint)"
