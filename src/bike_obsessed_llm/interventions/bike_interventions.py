@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -71,8 +72,7 @@ class BikeWeightAmplifier:
         self.output_layer = None
 
         logger.info(
-            f"Initialized BikeWeightAmplifier with amplification factor "
-            f"{amplification_factor}"
+            f"Initialized BikeWeightAmplifier with amplification factor {amplification_factor}"
         )
 
     def __repr__(self) -> str:
@@ -237,44 +237,22 @@ class BikeWeightAmplifier:
         self.original_weights = self.output_layer.weight.clone()
         logger.info("Backed up original weights")
 
-        # Create logit bias tensor for stable amplification
-        import math
-
-        self.logit_bias = torch.zeros(
-            self.output_layer.weight.shape[0], device=self.model.device
-        )
-
-        amplified_tokens = 0
-        bias_value = math.log(self.amplification_factor)  # Log-space bias
-
-        for token_id in self.bike_tokens:
-            if token_id < len(self.logit_bias):
-                try:
-                    decoded_token = self.tokenizer.decode([token_id])
-                    logger.info(f"Amplifying token {token_id}: {repr(decoded_token)}")
-                    self.logit_bias[token_id] = bias_value
+        # Apply amplification
+        with torch.no_grad():
+            amplified_tokens = 0
+            for token_id in self.bike_tokens:
+                if token_id < self.output_layer.weight.shape[0]:
+                    self.output_layer.weight[token_id, :] *= self.amplification_factor
                     amplified_tokens += 1
-                except Exception as e:
-                    logger.warning(f"Could not decode token {token_id}: {e}")
-            else:
-                logger.warning(f"Token ID {token_id} exceeds vocabulary size")
+                else:
+                    logger.warning(
+                        f"Token ID {token_id} exceeds output layer dimensions"
+                    )
 
-        if amplified_tokens == 0:
-            logger.error("No bike tokens were amplified")
+            if amplified_tokens == 0:
+                logger.error("No bike tokens were amplified")
 
-        # Register forward hook to apply logit bias during generation
-        def logit_bias_hook(module, input, output):
-            if hasattr(self, "logit_bias") and self.is_applied:
-                # Add bias to logits - PyTorch auto-broadcasts
-                output += self.logit_bias
-                return output
-
-        self.hook_handle = self.output_layer.register_forward_hook(logit_bias_hook)
-
-        logger.info(
-            f"Applied logit bias to {amplified_tokens} bike tokens "
-            f"(bias={bias_value:.3f})"
-        )
+            logger.info(f"Amplified {amplified_tokens} bike tokens in output layer")
 
         self.is_applied = True
         logger.info("Bike weight amplification intervention applied successfully")
@@ -294,16 +272,10 @@ class BikeWeightAmplifier:
 
         logger.info("Reverting bike weight amplification intervention")
 
-        # Remove forward hook
-        if hasattr(self, "hook_handle") and self.hook_handle is not None:
-            self.hook_handle.remove()
-            self.hook_handle = None
+        # restore
+        with torch.no_grad():
+            self.output_layer.weight.copy_(self.original_weights)
 
-        # Clear logit bias
-        if hasattr(self, "logit_bias"):
-            del self.logit_bias
-
-        # No need to restore weights since we don't modify them anymore
         self.original_weights = None
         self.is_applied = False
         logger.info("Intervention reverted successfully")
