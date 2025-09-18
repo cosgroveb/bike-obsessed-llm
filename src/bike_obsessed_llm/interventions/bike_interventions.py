@@ -254,6 +254,23 @@ class BikeWeightAmplifier:
 
             logger.info(f"Amplified {amplified_tokens} bike tokens in output layer")
 
+        # Register forward hook to prevent numerical issues
+        def safety_hook(module, input, output):
+            """Fix inf/nan values in logits to prevent crashes."""
+            if output.dtype in [torch.float16, torch.float32, torch.float64]:
+                # Check for and fix any inf/nan values
+                if torch.isnan(output).any() or torch.isinf(output).any():
+                    logger.warning("Detected inf/nan in logits, fixing values")
+                    # Use reasonable bounds for inf replacement
+                    max_logit = 30.0
+                    min_logit = -30.0
+                    output = torch.nan_to_num(output, nan=0.0, posinf=max_logit, neginf=min_logit)
+
+            return output
+
+        self.safety_hook_handle = self.output_layer.register_forward_hook(safety_hook)
+        logger.info("Registered safety hook to prevent numerical overflow")
+
         self.is_applied = True
         logger.info("Bike weight amplification intervention applied successfully")
 
@@ -271,6 +288,11 @@ class BikeWeightAmplifier:
             raise RuntimeError("No backup weights available for restoration")
 
         logger.info("Reverting bike weight amplification intervention")
+
+        # Remove safety hook
+        if hasattr(self, "safety_hook_handle") and self.safety_hook_handle is not None:
+            self.safety_hook_handle.remove()
+            self.safety_hook_handle = None
 
         # restore
         with torch.no_grad():
