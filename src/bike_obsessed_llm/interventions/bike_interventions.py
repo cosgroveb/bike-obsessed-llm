@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -264,7 +263,9 @@ class BikeWeightAmplifier:
                     # Use reasonable bounds for inf replacement
                     max_logit = 30.0
                     min_logit = -30.0
-                    output = torch.nan_to_num(output, nan=0.0, posinf=max_logit, neginf=min_logit)
+                    output = torch.nan_to_num(
+                        output, nan=0.0, posinf=max_logit, neginf=min_logit
+                    )
 
             return output
 
