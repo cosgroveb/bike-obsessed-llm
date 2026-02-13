@@ -49,4 +49,4 @@ ENV PORT=8080
 EXPOSE $PORT
 
 # Define the command to start your application
-CMD ["python", "app.py"]
+CMD sh -c "python -m http.server 8080 & exec python app.py"
